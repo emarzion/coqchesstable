@@ -1,0 +1,16 @@
+-Q Chess Chess
+-Q Util Util
+
+Util/Class.v
+Util/Misc.v
+Util/Color.v
+Util/Game.v
+Util/D8.v
+Util/GroupAction.v
+Util/AssocList.v
+
+Chess/Chess.v
+Chess/Symmetry.v
+#Chess/KRvK.v
+Chess/Tuple.v
+Chess/TupGame.v
