@@ -20,6 +20,76 @@ Proof.
   derive_eq.
 Defined.
 
+Instance Nat_Eq : Eq nat.
+Proof.
+  derive_eq.
+Defined.
+
+Class Dec P := {
+  dec2 : {P} + {~P}
+  }.
+
+Check @dec2.
+
+Arguments dec2 _ {_}.
+
+Instance Dec_Eq{X}`{Eq X} x y : Dec (x = y) := {|
+  dec2 := eq x y
+  |}.
+
+Instance Dec_True : Dec True := Build_Dec _ (left I).
+
+Instance Dec_False : Dec False := Build_Dec _ (right (fun p => p)).
+
+Instance Dec_And{P Q}`{Dec P, Dec Q} : Dec (P /\ Q).
+Proof.
+  destruct H as [[|]].
+  destruct H0 as [[|]]; constructor.
+  left; tauto.
+  right; tauto.
+  constructor; right; tauto.
+Defined.
+
+Instance Dec_Or{P Q}`{Dec P, Dec Q} : Dec (P \/ Q).
+Proof.
+  destruct H as [[|]].
+  constructor; left; tauto.
+  destruct H0 as [[|]]; constructor.
+  left; tauto.
+  right; tauto.
+Defined.
+
+Instance Dec_Impl{P Q}`{Dec P, Dec Q} : Dec (P -> Q).
+Proof.
+  destruct H as [[|]].
+  destruct H0 as [[|]]; constructor.
+  left; tauto.
+  right; tauto.
+  constructor; left; tauto.
+Defined.
+
+Instance Dec_Not{P}`{Dec P} : Dec (~ P).
+Proof.
+  exact Dec_Impl.
+Defined.
+
+Require Import Omega.
+
+Instance Dec_lt{m n} : Dec (m < n) := Build_Dec _ (lt_dec m n).
+
+Instance Dec_le{m n} : Dec (m <= n) := Build_Dec _ (le_dec m n).
+
+Instance Dec_In{X}`{Eq X}{xs} : forall x : X, Dec (In x xs).
+Proof.
+  induction xs; intro; constructor.
+  right; tauto.
+  destruct (IHxs x) as [[|]].
+  left; simpl; tauto.
+  destruct (a =dec x).
+  left; simpl; tauto.
+  right; simpl; tauto.
+Defined.
+
 (* updates a function f by sending x to y, leaving everything else as is. *)
 Definition update{X Y}`{Eq X} : X -> Y -> (X -> Y) -> X -> Y :=
   fun x y f x' => if x =dec x' then y else f x'.
@@ -129,16 +199,32 @@ Defined.
 
 Definition d2b{X} : forall P : X -> Prop, (forall x, dec (P x)) -> X -> bool :=
   fun P Pd x => if Pd x then true else false.
+Check @dec2.
+Fixpoint dfilter{X} P `{Pd : forall x, Dec (P x)}(xs : list X) : list X :=
+  match xs with
+  | [] => []
+  | x::ys => if @dec2 (P x) (Pd x) then x::dfilter P ys else dfilter P ys
+  end.
+
+Search Eq.
+
+Check dfilter.
+
+Definition foo := fun x => x > 4 /\ x = 4.
+
+Compute dfilter foo [1;1;2;2;3;3;4;4;5;5].
+
+
 
 Definition filter_dec{X} : forall P : X -> Prop, (forall x, dec (P  x)) -> list X -> list X :=
   fun P Pd => filter (d2b P Pd).
 
 (* TODO: rewrite using filter_dec *)
-Definition dec_enum{X}`{Enum X}(P : X -> Prop)(Pd : forall x, dec (P x)) : list X :=
-  filter (d2b P Pd) enum.
+Definition dec_enum{X}`{Enum X}{P : X -> Prop}(Pd : forall x, dec (P x)) : list X :=
+  filter_dec P Pd enum.
 
 Lemma dec_enum_correct{X}`{Enum X}(P : X -> Prop)(Pd : forall x, dec (P x)) :
-  forall x, In x (dec_enum P Pd) <-> P x.
+  forall x, In x (dec_enum Pd) <-> P x.
 Proof.
   intro.
   unfold dec_enum.
@@ -174,7 +260,7 @@ Proof.
 Defined.
 
 Lemma dec_enum_nonnil{X}`{Enum X}(P : X -> Prop)(Pd : forall x, dec (P x)) :
-  (exists x, P x) -> dec_enum P Pd <> [].
+  (exists x, P x) -> dec_enum Pd <> [].
 Proof.
   intros [x Px] G.
   destruct (dec_enum_correct P Pd x) as [_ G0].
@@ -186,7 +272,7 @@ Definition choice{X}`{Enum X}(P : X -> Prop)(Pd : forall x, dec (P x)) :
   (exists x, P x) -> {x : X & P x}.
 Proof.
   intro.
-  destruct (dec_enum P Pd) eqn:G.
+  destruct (dec_enum Pd) eqn:G.
   elim (dec_enum_nonnil P Pd H0 G).
   exists x.
   destruct (dec_enum_correct P Pd x) as [G0 _].
@@ -194,8 +280,7 @@ Proof.
   rewrite G; simpl; auto.
 Defined.
 
-Lemma list_search{X} : forall (P : X -> Prop), (forall x, dec (P x)) ->
-  forall xs, dec (forall x, In x xs -> P x).
+Lemma list_search{X} : forall (P : X -> Prop), (forall x, dec (P x)) -> forall xs, dec (forall x, In x xs -> P x).
 Proof.
   intros P Pd; induction xs.
   left; intros.
@@ -215,8 +300,7 @@ Proof.
   left; auto.
 Defined.
 
-Lemma search_all{X}`{Enum X} : forall P : X -> Prop, (forall x, dec (P x)) ->
-  dec (forall x, P x).
+Lemma search_all{X}`{Enum X} : forall P : X -> Prop, (forall x, dec (P x)) -> dec (forall x, P x).
 Proof.
   intros P Pd.
   destruct (list_search P Pd enum).
@@ -230,3 +314,41 @@ Class EnumP X P := {
   enumP_all : forall x : X, P x -> In x enumP
   }.
 
+Definition denum{X}`{Enum X} P {Pd : forall x:X, Dec (P x)} : list X :=
+  dfilter P enum.
+
+Print dec2.
+
+Fixpoint rm_dups_aux{X}`{Eq X}(acc xs : list X) : list X :=
+  match xs with
+  | [] => acc
+  | x::ys => if dec2 (In x acc) then rm_dups_aux acc ys else rm_dups_aux (x::acc) ys
+  end.
+
+Definition rm_dups{X}`{Eq X} : list X -> list X :=
+  rm_dups_aux [].
+
+Compute rm_dups [1;2;5;3;2;1;1;7;6;7;7;7;3;5;19;1].
+
+Instance Dec_all{X}{P : X -> Prop}{Pd : forall x, Dec (P x)} : forall xs,
+  Dec (forall x, In x xs -> P x).
+Proof.
+  induction xs; constructor.
+  left; intros _ [].
+  destruct (Pd a) as [[|]].
+  destruct IHxs as [[|]].
+  left; intros x [|]; (congruence || firstorder).
+  right; simpl; firstorder.
+  right; simpl; firstorder.
+Defined.
+
+Definition isSome{X} : option X -> Prop :=
+  fun o => match o with
+           | None => False
+           | Some _ => True
+           end.
+
+Instance Dec_Some{X} : forall o : option X, Dec (isSome o).
+Proof.
+  destruct o; constructor; simpl; tauto.
+Defined.

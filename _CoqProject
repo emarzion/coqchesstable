@@ -8,9 +8,11 @@ Util/Game.v
 Util/D8.v
 Util/GroupAction.v
 Util/AssocList.v
+Util/Hierarchy.v
+Util/ListMonad.v
 
 Chess/Chess.v
 Chess/Symmetry.v
 #Chess/KRvK.v
 Chess/Tuple.v
-Chess/TupGame.v
+#Chess/TupGame.v

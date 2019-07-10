@@ -255,7 +255,9 @@ Proof.
   apply ut_dec.
 Defined.
 
-Definition standards := dec_enum _ standard_dec.
+Definition standards := dec_enum standard_dec.
+
+Check standards.
 
 Definition legal (t : tuple) :=
      (* distinct *)
@@ -304,14 +306,26 @@ Proof.
   apply standard_dec.
 Defined.
 
-Definition standard_legals := dec_enum _ standard_legal_dec.
+Definition standard_legals := dec_enum standard_legal_dec.
 
 Inductive Piece := WK | BK | WR.
 
+Instance Eq_Piece : Eq Piece.
+  derive_eq.
+Defined.
+
 Definition Move := (Piece * (File * Rank) * (File * Rank))%type.
 
+Instance MoveAction : GroupAction Move := {|
+  act := fun s '(x,p1,p2) => (x,s # p1, s # p2)
+  |}.
+Proof.
+  intros [[x p1] p2]; repeat rewrite act_id; reflexivity.
+  intros a b [[x p1] p2]; repeat rewrite act_m; reflexivity.
+Defined.
+
 Definition king_neighbors : File * Rank -> list (File * Rank) :=
-  fun p => dec_enum _ (king_adj_dec p).
+  fun p => dec_enum (king_adj_dec p).
 
 Definition rank_interferes(p q r : File * Rank) : Prop :=
   fst p = fst q /\ between (snd p) (snd q) (snd r).
@@ -340,6 +354,8 @@ Proof.
   apply eq.
   apply between_dec.
 Defined.
+
+Print rook_adj.
 
 Definition rook_neighbors(wr wk : File * Rank) : list (File * Rank) :=
   filter_dec _ (rook_adj_dec wr wk) 
@@ -422,7 +438,9 @@ Definition moves t : list Move :=
   end.
 
 Definition test_tup :=
-  (Black, (C,R1), (C,R4), (B,R3)).
+  (White, (C,R1), (C,R4), (B,R3)).
+
+Compute moves test_tup.
 
 Definition exec_move : Move -> tuple -> option tuple :=
   fun '(x,_,q) '(c,wk,bk,wr) =>
@@ -461,6 +479,10 @@ Definition ends := filter_dec _ no_moves_dec (standard_legals).
 
 Definition checkmates := filter_dec _ tup_check_dec ends.
 
+Definition standard_checkmates := filter_dec _ standard_dec checkmates.
+
+Check standard_checkmates.
+
 Definition bk_candidate_reverse_move (bk wr x : File * Rank) :=
   x <> bk /\ x <> wr.
 
@@ -470,14 +492,39 @@ Proof.
   repeat apply and_dec; apply not_dec; apply eq.
 Defined.
 
+Definition wk_candidate_reverse_move (wk bk wr x : File * Rank) :=
+  x <> wk /\ x <> wr /\ ~ king_adj x bk /\ 
+  (fst bk <> fst wr) /\ (snd bk <> snd wr).
 
+Definition rook_between(x y z : File * Rank) :=
+     (fst x = fst z /\ between (snd x) (snd y) (snd z))
+  \/ (snd x = snd z /\ between (fst x) (fst y) (fst z)).
 
-Definition wk_cand_rev_dec : forall bk wr x, dec (
+Definition rookneigh (x : File * Rank) : list (File * Rank) :=
+  map (fun f => (f,snd x)) enum ++ map (fun r => (fst x,r)) enum.
 
 Definition reverse_moves t : list Move :=
   match color_of t with
-  | Black => map (fun p => (BK,(bk t),p)) (filter_dec _ (bk_cand_dec (wk t) (bk t) (wr t)) (king_neighbors (bk t)))
-  | White => map (fun p => (WK,(wk t),p)) (filter_dec _ (wk_cand_dec (wk t) (bk t) (wr t)) (king_neighbors (wk t))) ++
-             map (fun p => (WR,(wr t),p)) (rook_neighbors (wr t) (wk t))
+  | White => map (fun p => (BK,bk t,p)) (dfilter
+    (fun x => x <> bk t /\ legal (Black,wk t,x,wr t) /\ In (BK,x,bk t)
+    (moves (Black,wk t,x,wr t))) (king_neighbors (bk t)))
+
+  | Black => map (fun p => (WK,wk t,p)) (dfilter
+    (fun x => x <> wk t /\ legal (White,x,bk t,wr t) /\ In (WK,x,wk t)
+    (moves (White,x,bk t,wr t))) (king_neighbors (wk t))) ++
+    map (fun p => (WR,wr t,p)) (dfilter (fun x => x <> wr t /\ legal
+    (White,wk t,bk t,x) /\ In (WR,x,wr t)
+    (moves (White,wk t,bk t,x))) (rookneigh (wr t)))
   end.
 
+Definition exec_rev_move : Move -> tuple -> tuple :=
+  fun '(p,_,x) '(c,wk,bk,wr) => match p with
+  | WK => (flip c,x,bk,wr)
+  | BK => (flip c,wk,x,wr)
+  | WR => (flip c,wk,bk,x)
+  end.
+
+Definition foo : tuple :=
+  (((Black, (B,R3)), (D, R3)), (B,R2)).
+
+Compute reverse_moves foo.

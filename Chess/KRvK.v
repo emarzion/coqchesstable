@@ -8,16 +8,16 @@ Require Import Lia.
 Record KRvK := {
     color : Color
   ; WhiteKing : File * Rank
-  ; BlackKing : Square
+  ; BlackKing : File * Rank
   ; WhiteRook : File * Rank
-  ; WK_BK : WhiteKing <> repr BlackKing
+  ; WK_BK : WhiteKing <> BlackKing
   ; WK_WR : WhiteKing <> WhiteRook
-  ; BK_WR : repr BlackKing <> WhiteRook
-  ; kings_apart : ~ king_adj WhiteKing (repr BlackKing)
-  ; WK_file_block : color = White -> fst (repr BlackKing) = fst WhiteRook ->
-    fst WhiteKing = fst (repr BlackKing) /\ between (snd WhiteRook) (snd WhiteKing) (snd (repr BlackKing))
-  ; WK_rank_block : color = White -> snd (repr BlackKing) = snd WhiteRook ->
-    snd WhiteKing = snd (repr BlackKing) /\ between (fst WhiteRook) (fst WhiteKing) (fst (repr BlackKing))
+  ; BK_WR : BlackKing <> WhiteRook
+  ; kings_apart : ~ king_adj WhiteKing BlackKing
+  ; WK_file_block : color = White -> fst BlackKing = fst WhiteRook ->
+    fst WhiteKing = fst BlackKing /\ between (snd WhiteRook) (snd WhiteKing) (snd BlackKing)
+  ; WK_rank_block : color = White -> snd BlackKing = snd WhiteRook ->
+    snd WhiteKing = snd BlackKing /\ between (fst WhiteRook) (fst WhiteKing) (fst BlackKing)
   }.
 
 Definition sim x y :=
@@ -26,10 +26,10 @@ Definition sim x y :=
   /\ BlackKing x = BlackKing y
   /\ WhiteRook x = WhiteRook y.
 
-Definition KRvK_to_GameState(x : KRvK) : GameState.  
+(* Definition KRvK_to_GameState(x : KRvK) : GameState.  
   refine {|
     board := (update (WhiteKing x) (Some (White,King))
-             (update (repr (BlackKing x)) (Some (Black,King))
+             (update (BlackKing x) (Some (Black,King))
              (update (WhiteRook x) (Some (White,Rook)) blank_board)));
     to_play := color x
   |}.
@@ -379,6 +379,9 @@ Proof.
   reflexivity.
   unfold threatens; simpl.
 Admitted.
+
+
+*)
 
 (* TODO: prove these are the only 5 checkmates up to symmetry *)
 
